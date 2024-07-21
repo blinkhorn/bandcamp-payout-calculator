@@ -3,7 +3,7 @@ import sys
 from datetime import datetime
 
 
-def calculate_paypal_fee(net_amount: float):
+def calculate_paypal_fee(net_amount: float) -> float:
     rounded_net_amount = round(net_amount * 0.01, 2)
     return rounded_net_amount if rounded_net_amount < 1.00 else 1.00
 
@@ -16,19 +16,10 @@ def parse_data(data: float | str | int) -> float | str | int | None:
     return None
 
 
-TOTAL_RELEASES_NOT_INCLUDED_IN_BMR_DAY_PAYOUTS = 2
+RELEASES_NOT_INCLUDED_IN_BMR_DAY_PAYOUTS = {"BMRX001", "BMR000"}
 bandcamp_raw_sales_report_file_name = sys.argv[1]
 release_info_file_name = sys.argv[2]
 subscription_revenue_data_file_name = sys.argv[3]
-current_date = datetime.today().strftime("%Y-%m-%d")
-total_release_revenue = total_release_fees = (
-    total_bandcamp_subscription_revenue_owed
-) = mastering_fee_amount_left_to_recovered = mastering_fee_left = artist_split = (
-    bmr_split
-) = amount_owed_artist = 0
-opted_in_for_mastering = False
-latest_bmr_day_year = 0
-latest_bmr_day_date = None
 
 CSV_ROWS = [
     "date",
@@ -49,6 +40,8 @@ CSV_ROWS = [
 
 release_info_data = {}
 with open(release_info_file_name, newline="") as release_info_csv_file:
+    latest_bmr_day_year = 0
+
     release_info_reader = csv.reader(release_info_csv_file, delimiter=",")
     next(release_info_reader, None)
     for row in release_info_reader:
@@ -77,139 +70,7 @@ for release in release_info_data:
         <= latest_bmr_day_date
     ):
         bmr_day_subscriber_split_count += 1
-bmr_day_subscriber_split_count -= TOTAL_RELEASES_NOT_INCLUDED_IN_BMR_DAY_PAYOUTS
-
-
-def calculate_subscription_revenue_share_for_release(
-    catalog_number: str, release_date: str, subscription_revenue_data: dict
-) -> float:
-    revenue_share_owed = 0.00
-    next_bmr_day_date = datetime(latest_bmr_day_year + 1, 6, 6)
-    for subscriber_id in subscription_revenue_data:
-        subscriber_since = datetime(
-            int(subscription_revenue_data[subscriber_id]["subscriber_since"][-4:]),
-            int(subscription_revenue_data[subscriber_id]["subscriber_since"][:2]),
-            int(subscription_revenue_data[subscriber_id]["subscriber_since"][3:5]),
-        )
-        print(catalog_number)
-        print(next_bmr_day_date)
-        print(subscriber_since)
-        print(subscriber_id)
-        print(subscription_revenue_data[subscriber_id]["new_bmr_day_subscriber"])
-        print(subscriber_since < next_bmr_day_date)
-        print(
-            catalog_number.lower()
-            not in subscription_revenue_data[subscriber_id]["catalog_numbers_paid"]
-        )
-        print(not subscription_revenue_data[subscriber_id]["all_releases_paid"])
-        print(not subscription_revenue_data[subscriber_id]["is_renewal"])
-        print(
-            datetime(
-                int(subscription_revenue_data[subscriber_id]["transaction_date"][-4:])
-                + 1,
-                int(subscription_revenue_data[subscriber_id]["transaction_date"][:2]),
-                int(subscription_revenue_data[subscriber_id]["transaction_date"][3:5]),
-            )
-            > datetime(
-                int(release_date[-4:]), int(release_date[:2]), int(release_date[3:5])
-            )
-        )
-        print("sdjfidsjfsdjfids")
-        print(
-            subscription_revenue_data[subscriber_id]["new_bmr_day_subscriber"]
-            and subscriber_since < next_bmr_day_date
-            and catalog_number.lower()
-            not in subscription_revenue_data[subscriber_id]["catalog_numbers_paid"]
-            and not subscription_revenue_data[subscriber_id]["all_releases_paid"]
-        )
-        print(
-            not subscription_revenue_data[subscriber_id]["new_bmr_day_subscriber"]
-            and not subscription_revenue_data[subscriber_id]["is_renewal"]
-            and datetime(
-                int(subscription_revenue_data[subscriber_id]["transaction_date"][-4:])
-                + 1,
-                int(subscription_revenue_data[subscriber_id]["transaction_date"][:2]),
-                int(subscription_revenue_data[subscriber_id]["transaction_date"][3:5]),
-            )
-            > datetime(
-                int(release_date[-4:]), int(release_date[:2]), int(release_date[3:5])
-            )
-            and catalog_number.lower()
-            not in subscription_revenue_data[subscriber_id]["catalog_numbers_paid"]
-            and not subscription_revenue_data[subscriber_id]["all_releases_paid"]
-        )
-        print(
-            not subscription_revenue_data[subscriber_id]["new_bmr_day_subscriber"]
-            and subscription_revenue_data[subscriber_id]["is_renewal"]
-            and datetime(
-                int(subscription_revenue_data[subscriber_id]["transaction_date"][-4:])
-                + 1,
-                int(subscription_revenue_data[subscriber_id]["transaction_date"][:2]),
-                int(subscription_revenue_data[subscriber_id]["transaction_date"][3:5]),
-            )
-            > datetime(
-                int(release_date[-4:]), int(release_date[:2]), int(release_date[3:5])
-            )
-            and catalog_number.lower()
-            not in subscription_revenue_data[subscriber_id]["catalog_numbers_paid"]
-            and not subscription_revenue_data[subscriber_id]["all_releases_paid"]
-        )
-        if (
-            subscription_revenue_data[subscriber_id]["new_bmr_day_subscriber"]
-            and subscriber_since < next_bmr_day_date
-            and catalog_number.lower()
-            not in subscription_revenue_data[subscriber_id][
-                "catalog_numbers_paid"
-            ].lower()
-            and not subscription_revenue_data[subscriber_id]["all_releases_paid"]
-        ):
-            revenue_share_owed += float(
-                subscription_revenue_data[subscriber_id]["amount_received"]
-            ) / float(bmr_day_subscriber_split_count)
-        elif (
-            not subscription_revenue_data[subscriber_id]["new_bmr_day_subscriber"]
-            and not subscription_revenue_data[subscriber_id]["is_renewal"]
-            and datetime(
-                int(subscription_revenue_data[subscriber_id]["transaction_date"][-4:])
-                + 1,
-                int(subscription_revenue_data[subscriber_id]["transaction_date"][:2]),
-                int(subscription_revenue_data[subscriber_id]["transaction_date"][3:5]),
-            )
-            > datetime(
-                int(release_date[-4:]), int(release_date[:2]), int(release_date[3:5])
-            )
-            and catalog_number.lower()
-            not in subscription_revenue_data[subscriber_id][
-                "catalog_numbers_paid"
-            ].lower()
-            and not subscription_revenue_data[subscriber_id]["all_releases_paid"]
-        ):
-            revenue_share_owed += float(
-                subscription_revenue_data[subscriber_id]["amount_received"]
-            ) / float(12)
-        elif (
-            not subscription_revenue_data[subscriber_id]["new_bmr_day_subscriber"]
-            and subscription_revenue_data[subscriber_id]["is_renewal"]
-            and datetime(
-                int(subscription_revenue_data[subscriber_id]["transaction_date"][-4:])
-                + 1,
-                int(subscription_revenue_data[subscriber_id]["transaction_date"][:2]),
-                int(subscription_revenue_data[subscriber_id]["transaction_date"][3:5]),
-            )
-            > datetime(
-                int(release_date[-4:]), int(release_date[:2]), int(release_date[3:5])
-            )
-            and catalog_number.lower()
-            not in subscription_revenue_data[subscriber_id][
-                "catalog_numbers_paid"
-            ].lower()
-            and not subscription_revenue_data[subscriber_id]["all_releases_paid"]
-        ):
-            revenue_share_owed += float(
-                subscription_revenue_data[subscriber_id]["amount_received"]
-            ) / float(12)
-    return revenue_share_owed
-
+bmr_day_subscriber_split_count -= len(RELEASES_NOT_INCLUDED_IN_BMR_DAY_PAYOUTS)
 
 bandcamp_sales_data = {}
 with open(
@@ -262,6 +123,63 @@ with open(
         }
 
 
+def calculate_subscription_revenue_share_for_release(catalog_number: str) -> float:
+    revenue_share_owed = 0.00
+    next_bmr_day_date = datetime(latest_bmr_day_year + 1, 6, 6)
+    release_date = release_info_data[catalog_number]["release_date"]
+    for subscriber_id in subscription_revenue_data:
+        subscriber_since = datetime(
+            int(subscription_revenue_data[subscriber_id]["subscriber_since"][-4:]),
+            int(subscription_revenue_data[subscriber_id]["subscriber_since"][:2]),
+            int(subscription_revenue_data[subscriber_id]["subscriber_since"][3:5]),
+        )
+        if (
+            subscription_revenue_data[subscriber_id]["new_bmr_day_subscriber"]
+            and subscriber_since < next_bmr_day_date
+            and catalog_number.lower()
+            not in subscription_revenue_data[subscriber_id][
+                "catalog_numbers_paid"
+            ].lower()
+            and not subscription_revenue_data[subscriber_id]["all_releases_paid"]
+        ):
+            revenue_share_owed += float(
+                subscription_revenue_data[subscriber_id]["amount_received"]
+            ) / float(bmr_day_subscriber_split_count)
+        elif (
+            not subscription_revenue_data[subscriber_id]["new_bmr_day_subscriber"]
+            and datetime(
+                int(subscription_revenue_data[subscriber_id]["transaction_date"][-4:]),
+                int(subscription_revenue_data[subscriber_id]["transaction_date"][:2]),
+                int(subscription_revenue_data[subscriber_id]["transaction_date"][3:5]),
+            )
+            < datetime(
+                int(release_date[-4:]),
+                int(release_date[:2]),
+                int(release_date[3:5]),
+            )
+            and datetime(
+                int(subscription_revenue_data[subscriber_id]["transaction_date"][-4:])
+                + 1,
+                int(subscription_revenue_data[subscriber_id]["transaction_date"][:2]),
+                int(subscription_revenue_data[subscriber_id]["transaction_date"][3:5]),
+            )
+            >= datetime(
+                int(release_date[-4:]),
+                int(release_date[:2]),
+                int(release_date[3:5]),
+            )
+            and catalog_number.lower()
+            not in subscription_revenue_data[subscriber_id][
+                "catalog_numbers_paid"
+            ].lower()
+            and not subscription_revenue_data[subscriber_id]["all_releases_paid"]
+        ):
+            revenue_share_owed += float(
+                subscription_revenue_data[subscriber_id]["amount_received"]
+            ) / float(12)
+    return revenue_share_owed
+
+
 def calculate_mastering_fee_left_to_recover(
     release_catalog_number: str, total_revenue: float
 ) -> float | str:
@@ -276,77 +194,99 @@ def calculate_mastering_fee_left_to_recover(
     return remaining_amount
 
 
+current_date = datetime.today().strftime("%Y-%m-%d")
+
 for release_catalog_number in release_info_data:
-    with open(
-        f"{current_date}_{release_catalog_number}_bandcamp_sales_report.csv",
-        "w",
-        newline="",
-    ) as csvfile:
-        csvwriter = csv.writer(csvfile, delimiter=",")
-        release_sales_data = []
-        if release_catalog_number in bandcamp_sales_data:
-            release_sales_data = bandcamp_sales_data[release_catalog_number]
-        csvwriter.writerow(CSV_ROWS)
-        for sale in release_sales_data:
-            release_info_data[release_catalog_number][
-                "total_bandcamp_revenue"
-            ] += float(sale["net_amount"]) - float(sale["paypal_payout_fee"])
-            csvwriter.writerow(sale.values())
-        for j in range(3):
-            csvwriter.writerow([None] * len(CSV_ROWS))
-        results_headers = [
-            f"Total revenue from direct {release_catalog_number} Bandcamp sales",
-            f"Total revenue from Bandcamp annual Subscriptions purchased on or before {release_info_data[release_catalog_number]['release_date']}",
-            f"Total revenue from direct {release_catalog_number} Bandcamp sales and Bandcamp annual Subscriptions purchased on or before {release_info_data[release_catalog_number]['release_date']}",
-            "Amount of mastering fee left to recover before split",
-            "Total revenue after mastering fee recovered",
-            f"{release_info_data[release_catalog_number]['artist_name']} split",
-            "BMR Split",
-            f"Amount Owed {release_info_data[release_catalog_number]['artist_name']}",
-        ]
-        csvwriter.writerow(results_headers)
+    if (
+        release_catalog_number not in RELEASES_NOT_INCLUDED_IN_BMR_DAY_PAYOUTS
+        or "BMR000" in bandcamp_sales_data
+    ):
+        with open(
+            f"{current_date}_{release_catalog_number}_bandcamp_sales_report.csv",
+            "w",
+            newline="",
+        ) as csvfile:
+            csvwriter = csv.writer(csvfile, delimiter=",")
+            release_sales_data = []
+            if release_catalog_number in bandcamp_sales_data:
+                release_sales_data = bandcamp_sales_data[release_catalog_number]
+            csvwriter.writerow(CSV_ROWS)
+            if len(release_sales_data):
+                for sale in release_sales_data:
+                    release_info_data[release_catalog_number][
+                        "total_bandcamp_revenue"
+                    ] += float(sale["net_amount"]) - float(sale["paypal_payout_fee"])
+                    csvwriter.writerow(sale.values())
+            else:
+                csvwriter.writerow(
+                    ["No direct Bandcamp sales this accounting cycle"] * len(CSV_ROWS)
+                )
 
-        total_subscription_revenue_share = (
-            calculate_subscription_revenue_share_for_release(
-                release_catalog_number,
-                release_info_data[release_catalog_number]["release_date"],
-                subscription_revenue_data,
+            for j in range(3):
+                csvwriter.writerow([None] * len(CSV_ROWS))
+
+            results_headers = [
+                "Total revenue from direct Bandcamp sales",
+                f"Total revenue from Bandcamp annual Subscriptions purchased on or before {release_info_data[release_catalog_number]['release_date']}",
+                f"Total revenue from direct Bandcamp sales and Bandcamp annual Subscriptions purchased on or before {release_info_data[release_catalog_number]['release_date']}",
+                "Amount of mastering fee left to recover before split",
+                "Total revenue after mastering fee recovered",
+                f"{release_info_data[release_catalog_number]['artist_name']} split",
+                "BMR Split",
+                f"Amount Owed {release_info_data[release_catalog_number]['artist_name']}",
+            ]
+            csvwriter.writerow(results_headers)
+
+            total_subscription_revenue_share = (
+                calculate_subscription_revenue_share_for_release(release_catalog_number)
             )
-        )
-        net_revenue = (
-            release_info_data[release_catalog_number]["total_bandcamp_revenue"]
-            + total_subscription_revenue_share
-        )
-        mastering_fee_left = calculate_mastering_fee_left_to_recover(
-            release_catalog_number, net_revenue
-        )
-        if mastering_fee_left != "Not Applicable" and mastering_fee_left < 0.00:
-            net_revenue = mastering_fee_left * -1.00
-            mastering_fee_left = 0.00
+            net_revenue = (
+                release_info_data[release_catalog_number]["total_bandcamp_revenue"]
+                + total_subscription_revenue_share
+            )
+            mastering_fee_left = calculate_mastering_fee_left_to_recover(
+                release_catalog_number, net_revenue
+            )
+            if mastering_fee_left == 0.00:
+                net_revenue = 0.00
+                total_revenue_after_mastering_fee_recovered = 0.00
+            elif mastering_fee_left == "Not Applicable":
+                total_revenue_after_mastering_fee_recovered = mastering_fee_left
+            elif mastering_fee_left < 0.00:
+                total_revenue_after_mastering_fee_recovered = mastering_fee_left * -1.00
+                mastering_fee_left = 0.00
+            else:
+                total_revenue_after_mastering_fee_recovered = 0.00
 
-        if mastering_fee_left == "Not Applicable":
-            total_revenue_after_mastering_fee_recovered = mastering_fee_left
-        elif mastering_fee_left > 0.00:
-            total_revenue_after_mastering_fee_recovered = 0.00
-        else:
-            total_revenue_after_mastering_fee_recovered = net_revenue
+            net_revenue_after_mastering_fee_recovered = (
+                net_revenue
+                if total_revenue_after_mastering_fee_recovered == "Not Applicable"
+                else total_revenue_after_mastering_fee_recovered
+            )
 
-        release_results = [
-            release_info_data[release_catalog_number]["total_bandcamp_revenue"],
-            total_subscription_revenue_share,
-            net_revenue,
-            mastering_fee_left,
-            total_revenue_after_mastering_fee_recovered,
-            (
-                net_revenue * 0.60
-                if mastering_fee_left == "Not Applicable" or mastering_fee_left == 0.00
-                else 0.00
-            ),
-            net_revenue * 0.40 if mastering_fee_left == "Not Applicable" or mastering_fee_left == 0.00 else net_revenue,
-            (
-                net_revenue * 0.60
-                if mastering_fee_left == "Not Applicable" or mastering_fee_left == 0.00
-                else 0.00
-            ),
-        ]
-        csvwriter.writerow(release_results)
+            release_results = [
+                release_info_data[release_catalog_number]["total_bandcamp_revenue"],
+                total_subscription_revenue_share,
+                net_revenue,
+                mastering_fee_left,
+                total_revenue_after_mastering_fee_recovered,
+                (
+                    net_revenue_after_mastering_fee_recovered * 0.60
+                    if mastering_fee_left == "Not Applicable"
+                    or mastering_fee_left == 0.00
+                    else 0.00
+                ),
+                (
+                    net_revenue_after_mastering_fee_recovered * 0.40
+                    if mastering_fee_left == "Not Applicable"
+                    or mastering_fee_left == 0.00
+                    else net_revenue
+                ),
+                (
+                    net_revenue_after_mastering_fee_recovered * 0.60
+                    if mastering_fee_left == "Not Applicable"
+                    or mastering_fee_left == 0.00
+                    else 0.00
+                ),
+            ]
+            csvwriter.writerow(release_results)
