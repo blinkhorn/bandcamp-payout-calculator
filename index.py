@@ -247,8 +247,10 @@ for release_catalog_number in release_info_data:
             mastering_fee_left = calculate_mastering_fee_left_to_recover(
                 release_catalog_number, net_revenue
             )
+
+            artist_broke_even = False
             if mastering_fee_left == 0.00:
-                net_revenue = 0.00
+                artist_broke_even = True
                 total_revenue_after_mastering_fee_recovered = 0.00
             elif mastering_fee_left == "Not Applicable":
                 total_revenue_after_mastering_fee_recovered = mastering_fee_left
@@ -279,7 +281,7 @@ for release_catalog_number in release_info_data:
                 (
                     net_revenue_after_mastering_fee_recovered * 0.40
                     if mastering_fee_left == "Not Applicable"
-                    or mastering_fee_left == 0.00
+                    or (mastering_fee_left == 0.00 and not artist_broke_even)
                     else net_revenue
                 ),
                 (
