@@ -197,9 +197,8 @@ def calculate_mastering_fee_left_to_recover(
 current_date = datetime.today().strftime("%Y-%m-%d")
 
 for release_catalog_number in release_info_data:
-    if (
-        release_catalog_number not in RELEASES_NOT_INCLUDED_IN_BMR_DAY_PAYOUTS
-        or "BMR000" in bandcamp_sales_data
+    if release_catalog_number not in RELEASES_NOT_INCLUDED_IN_BMR_DAY_PAYOUTS or (
+        release_catalog_number != "BMRX001" and "BMR000" in bandcamp_sales_data
     ):
         with open(
             f"{current_date}_{release_catalog_number}_bandcamp_sales_report.csv",
