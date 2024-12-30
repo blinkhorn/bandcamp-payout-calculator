@@ -201,26 +201,25 @@ def calculate_mastering_fee_left_to_recover(
         )
     return remaining_amount
 
-# TODO : pick work back up here
 def parse_artist_split_distribution_by_track_and_overall_release(release_catalog_number: str) -> dict:
-    artist_split_distribution_rules_by_track_and_overall_release = {"recording_artists": set()}
-    artist_split_distributions = release_info_data[release_catalog_number]["artist_split_distribution_by_track_and_overall_release"].split(";")
-    for distribution in artist_split_distributions:
+    distribution_rules = {"recording_artists": {}}
+    distributions = release_info_data[release_catalog_number]["artist_split_distribution_by_track_and_overall_release"].split(";")
+    for distribution in distributions:
         music_recording_item, _, distribution_rule = distribution.partition(":")
-        recording_artist_splits = [distribution_rule]
+        splits_by_recording = [distribution_rule]
+        distribution_rules[music_recording_item] = {}
         if "&" in distribution_rule:
-            recording_artist_splits = distribution_rule.split("&")
-        for recording_artist_split in recording_artist_splits:
-            artist_name, _, split_percentage = recording_artist_split.partition("=")
-            artist_split_distribution_rules_by_track_and_overall_release["recording_artists"].add(artist_name)
-            if artist_name in artist_split_distribution_rules_by_track_and_overall_release["recording_artists"]:
-                artist_split_distribution_rules_by_track_and_overall_release["recording_artists"][artist_name][music_recording_item] = split_percentage
+            splits_by_recording = distribution_rule.split("&")
+        for split in splits_by_recording:
+            artist_name, _, split_amount = split.partition("=")
+            if artist_name in distribution_rules["recording_artists"]:
+                distribution_rules["recording_artists"][artist_name]["payable_recordings"].append(music_recording_item)
             else:
-                artist_split_distribution_rules_by_track_and_overall_release["recording_artists"][artist_name] = {music_recording_item: split_percentage}
-
-
-        artist_split_distribution_rules_by_track_and_overall_release[music_recording_item] = recording_artist_splits
-    return artist_split_distribution_rules_by_track_and_overall_release
+                distribution_rules["recording_artists"][artist_name] = {"payable_recordings": [music_recording_item]}
+            
+            distribution_rules[music_recording_item][artist_name] = split_amount
+            
+    return distribution_rules
 
 
 current_date = datetime.today().strftime("%Y-%m-%d")
