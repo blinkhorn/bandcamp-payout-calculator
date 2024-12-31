@@ -52,7 +52,9 @@ with open(release_info_file_name, newline="") as release_info_csv_file:
             "mastering_fee": float(parse_data(row[4])),
             "mastering_fee_amount_left_to_recover": float(parse_data(row[5])),
             "multiple_artist_release": parse_data(row[6]) == "yes",
-            "artist_split_distribution_by_track_and_overall_release": parse_data(row[7]),
+            "artist_split_distribution_by_track_and_overall_release": parse_data(
+                row[7]
+            ),
             "total_bandcamp_revenue": 0.00,
             "total_revenue_from_subscriptions": 0.00,
         }
@@ -201,9 +203,14 @@ def calculate_mastering_fee_left_to_recover(
         )
     return remaining_amount
 
-def parse_artist_split_distribution_by_track_and_overall_release(release_catalog_number: str) -> dict:
+
+def parse_artist_split_distribution_by_track_and_overall_release(
+    release_catalog_number: str,
+) -> dict:
     distribution_rules = {"recording_artists": {}}
-    distributions = release_info_data[release_catalog_number]["artist_split_distribution_by_track_and_overall_release"].split(";")
+    distributions = release_info_data[release_catalog_number][
+        "artist_split_distribution_by_track_and_overall_release"
+    ].split(";")
     for distribution in distributions:
         music_recording_item, _, distribution_rule = distribution.partition(":")
         splits_by_recording = [distribution_rule]
@@ -213,16 +220,168 @@ def parse_artist_split_distribution_by_track_and_overall_release(release_catalog
         for split in splits_by_recording:
             artist_name, _, split_amount = split.partition("=")
             if artist_name in distribution_rules["recording_artists"]:
-                distribution_rules["recording_artists"][artist_name]["payable_recordings"].append(music_recording_item)
+                distribution_rules["recording_artists"][artist_name][
+                    "payable_recordings"
+                ].append(music_recording_item)
             else:
-                distribution_rules["recording_artists"][artist_name] = {"payable_recordings": [music_recording_item]}
-            
+                distribution_rules["recording_artists"][artist_name] = {
+                    "payable_recordings": [music_recording_item]
+                }
+
             distribution_rules[music_recording_item][artist_name] = split_amount
-            
+
     return distribution_rules
 
 
 current_date = datetime.today().strftime("%Y-%m-%d")
+
+
+def create_payout_csv(
+    release_catalog_number: str,
+    artist_name: str | None = None,
+    distribution_rules: dict | None = None,
+):
+    release_catalog_number_report_id = release_catalog_number
+    if release_info_data[release_catalog_number]["multiple_artist_release"]:
+        release_catalog_number_report_id = f"{artist_name}_{release_catalog_number}"
+        if (
+            "bandcamp_revenue_by_artist"
+            not in release_info_data[release_catalog_number]
+            or not release_info_data[release_catalog_number][
+                "bandcamp_revenue_by_artist"
+            ]
+        ):
+            release_info_data[release_catalog_number]["bandcamp_revenue_by_artist"] = {
+                artist: 0.00
+            }
+        else:
+            release_info_data[release_catalog_number]["bandcamp_revenue_by_artist"][
+                artist
+            ] = 0.00
+    with open(
+        f"{current_date}_{release_catalog_number_report_id}_bandcamp_sales_report.csv",
+        "w",
+        newline="",
+    ) as csvfile:
+        csvwriter = csv.writer(csvfile, delimiter=",")
+        release_sales_data = []
+        if release_catalog_number in bandcamp_sales_data:
+            release_sales_data = bandcamp_sales_data[release_catalog_number]
+        csvwriter.writerow(CSV_ROWS)
+        if len(release_sales_data):
+            for sale in release_sales_data:
+                release_info_data[release_catalog_number][
+                    "total_bandcamp_revenue"
+                ] += float(sale["net_amount"]) - float(sale["paypal_payout_fee"])
+                if not release_info_data[release_catalog_number][
+                    "multiple_artist_release"
+                ]:
+                    csvwriter.writerow(sale.values())
+                else:
+                    if sale["item_type"] == "album":
+                        if (
+                            "overall_release"
+                            in distribution_rules["recording_artists"][artist_name][
+                                "payable_recordings"
+                            ]
+                        ):
+                            release_info_data[release_catalog_number][
+                                "bandcamp_revenue_by_artist"
+                            ][artist] += float(sale["net_amount"]) - float(
+                                sale["paypal_payout_fee"]
+                            )
+                            csvwriter.writerow(sale.values())
+                    elif sale["item_type"] == "track":
+                        if (
+                            sale["item_name"]
+                            in distribution_rules["recording_artists"][artist_name][
+                                "payable_recordings"
+                            ]
+                        ):
+                            release_info_data[release_catalog_number][
+                                "bandcamp_revenue_by_artist"
+                            ][artist] += float(sale["net_amount"]) - float(
+                                sale["paypal_payout_fee"]
+                            )
+                            csvwriter.writerow(sale.values())
+        else:
+            csvwriter.writerow(
+                ["No direct Bandcamp sales this accounting cycle"] * len(CSV_ROWS)
+            )
+
+        for _ in range(3):
+            csvwriter.writerow([None] * len(CSV_ROWS))
+
+        results_headers_artist_name = artist_name if artist_name else release_info_data[release_catalog_number]['artist_name']
+        
+        results_headers = [
+            "Total revenue from direct Bandcamp sales",
+            f"Total revenue from Bandcamp annual Subscriptions purchased on or before {release_info_data[release_catalog_number]['release_date']}",
+            f"Total revenue from direct Bandcamp sales and Bandcamp annual Subscriptions purchased on or before {release_info_data[release_catalog_number]['release_date']}",
+            "Amount of mastering fee left to recover before split",
+            "Total revenue after mastering fee recovered",
+            f"{results_headers_artist_name} split",
+            "BMR Split",
+            f"Amount Owed {results_headers_artist_name}",
+        ]
+        csvwriter.writerow(results_headers)
+
+        total_subscription_revenue_share = (
+            calculate_subscription_revenue_share_for_release(release_catalog_number)
+        )
+        net_revenue = (
+            release_info_data[release_catalog_number]["total_bandcamp_revenue"]
+            + total_subscription_revenue_share
+        )
+
+        mastering_fee_left = calculate_mastering_fee_left_to_recover(
+            release_catalog_number, net_revenue
+        )
+
+        release_broke_even = False
+        if mastering_fee_left == 0.00:
+            release_broke_even = True
+            total_revenue_after_mastering_fee_recovered = 0.00
+        elif mastering_fee_left == "Not Applicable":
+            total_revenue_after_mastering_fee_recovered = mastering_fee_left
+        elif mastering_fee_left < 0.00:
+            total_revenue_after_mastering_fee_recovered = mastering_fee_left * -1.00
+            mastering_fee_left = 0.00
+        else:
+            total_revenue_after_mastering_fee_recovered = 0.00
+
+        net_revenue_after_mastering_fee_recovered = (
+            net_revenue
+            if total_revenue_after_mastering_fee_recovered == "Not Applicable"
+            else total_revenue_after_mastering_fee_recovered
+        )
+
+        # TODO: add logic to calculate amount owed specific artist in multi-artist releases
+        release_results = [
+            release_info_data[release_catalog_number]["total_bandcamp_revenue"],
+            total_subscription_revenue_share,
+            net_revenue,
+            mastering_fee_left,
+            total_revenue_after_mastering_fee_recovered,
+            (
+                net_revenue_after_mastering_fee_recovered * 0.60
+                if mastering_fee_left == "Not Applicable" or mastering_fee_left == 0.00
+                else 0.00
+            ),
+            (
+                net_revenue_after_mastering_fee_recovered * 0.40
+                if mastering_fee_left == "Not Applicable"
+                or (mastering_fee_left == 0.00 and not release_broke_even)
+                else net_revenue
+            ),
+            (
+                net_revenue_after_mastering_fee_recovered * 0.60
+                if mastering_fee_left == "Not Applicable" or mastering_fee_left == 0.00
+                else 0.00
+            ),
+        ]
+        csvwriter.writerow(release_results)
+
 
 for release_catalog_number in release_info_data:
     artist_split_distribution_by_track_and_overall_release = None
@@ -230,103 +389,13 @@ for release_catalog_number in release_info_data:
         release_catalog_number != "BMRX001" and "BMR000" in bandcamp_sales_data
     ):
         # TODO: set release_catalog_number here to artist split of release if multi-artist release
-        release_catalog_number_report_id = release_catalog_number
         if release_info_data[release_catalog_number]["multiple_artist_release"]:
-            release_catalog_number_report_id = f"{}_{release_catalog_number}"
-        with open(
-            f"{current_date}_{release_catalog_number}_bandcamp_sales_report.csv",
-            "w",
-            newline="",
-        ) as csvfile:
-            csvwriter = csv.writer(csvfile, delimiter=",")
-            release_sales_data = []
-            if release_catalog_number in bandcamp_sales_data:
-                release_sales_data = bandcamp_sales_data[release_catalog_number]
-            csvwriter.writerow(CSV_ROWS)
-            if len(release_sales_data):
-                for sale in release_sales_data:
-                    release_info_data[release_catalog_number][
-                        "total_bandcamp_revenue"
-                    ] += float(sale["net_amount"]) - float(sale["paypal_payout_fee"])
-                    # TODO: if multi-artist release, add logic to only add the appropriate sale(s) from releases_sales_data here for that artist separately
-                    csvwriter.writerow(
-                        sale.values()
-                    )  # TODO: add logic to only write the row if it applies to artist in multi-artist releases
-            else:
-                csvwriter.writerow(
-                    ["No direct Bandcamp sales this accounting cycle"] * len(CSV_ROWS)
+            distribution_rules = (
+                parse_artist_split_distribution_by_track_and_overall_release(
+                    release_catalog_number
                 )
-
-            for j in range(3):
-                csvwriter.writerow([None] * len(CSV_ROWS))
-
-            # TODO: add logic to print artist specific split in multi-artist releases
-            results_headers = [
-                "Total revenue from direct Bandcamp sales",
-                f"Total revenue from Bandcamp annual Subscriptions purchased on or before {release_info_data[release_catalog_number]['release_date']}",
-                f"Total revenue from direct Bandcamp sales and Bandcamp annual Subscriptions purchased on or before {release_info_data[release_catalog_number]['release_date']}",
-                "Amount of mastering fee left to recover before split",
-                "Total revenue after mastering fee recovered",
-                f"{release_info_data[release_catalog_number]['artist_name']} split",
-                "BMR Split",
-                f"Amount Owed {release_info_data[release_catalog_number]['artist_name']}",
-            ]
-            csvwriter.writerow(results_headers)
-
-            total_subscription_revenue_share = (
-                calculate_subscription_revenue_share_for_release(release_catalog_number)
             )
-            net_revenue = (
-                release_info_data[release_catalog_number]["total_bandcamp_revenue"]
-                + total_subscription_revenue_share
-            )
-
-            # TODO: add logic to calculate amount owed specific artist in multi-artist releases
-            mastering_fee_left = calculate_mastering_fee_left_to_recover(
-                release_catalog_number, net_revenue
-            )
-
-            artist_broke_even = False
-            if mastering_fee_left == 0.00:
-                artist_broke_even = True
-                total_revenue_after_mastering_fee_recovered = 0.00
-            elif mastering_fee_left == "Not Applicable":
-                total_revenue_after_mastering_fee_recovered = mastering_fee_left
-            elif mastering_fee_left < 0.00:
-                total_revenue_after_mastering_fee_recovered = mastering_fee_left * -1.00
-                mastering_fee_left = 0.00
-            else:
-                total_revenue_after_mastering_fee_recovered = 0.00
-
-            net_revenue_after_mastering_fee_recovered = (
-                net_revenue
-                if total_revenue_after_mastering_fee_recovered == "Not Applicable"
-                else total_revenue_after_mastering_fee_recovered
-            )
-
-            release_results = [
-                release_info_data[release_catalog_number]["total_bandcamp_revenue"],
-                total_subscription_revenue_share,
-                net_revenue,
-                mastering_fee_left,
-                total_revenue_after_mastering_fee_recovered,
-                (
-                    net_revenue_after_mastering_fee_recovered * 0.60
-                    if mastering_fee_left == "Not Applicable"
-                    or mastering_fee_left == 0.00
-                    else 0.00
-                ),
-                (
-                    net_revenue_after_mastering_fee_recovered * 0.40
-                    if mastering_fee_left == "Not Applicable"
-                    or (mastering_fee_left == 0.00 and not artist_broke_even)
-                    else net_revenue
-                ),
-                (
-                    net_revenue_after_mastering_fee_recovered * 0.60
-                    if mastering_fee_left == "Not Applicable"
-                    or mastering_fee_left == 0.00
-                    else 0.00
-                ),
-            ]
-            csvwriter.writerow(release_results)
+            for artist in distribution_rules["recording_artists"]:
+                create_payout_csv(release_catalog_number, artist, distribution_rules)
+        else:
+            create_payout_csv(release_catalog_number)
