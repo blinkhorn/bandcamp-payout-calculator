@@ -194,7 +194,13 @@ def calculate_mastering_fee_left_to_recover(
     release_catalog_number: str, total_revenue: float
 ) -> float | str:
     remaining_amount = "Not Applicable"
-    if release_info_data[release_catalog_number]["mastering_opt_in"]:
+    if (
+        release_info_data[release_catalog_number]["mastering_opt_in"]
+        and release_info_data[release_catalog_number][
+            "mastering_fee_amount_left_to_recover"
+        ]
+        != 0.00
+    ):
         remaining_amount = (
             release_info_data[release_catalog_number][
                 "mastering_fee_amount_left_to_recover"
@@ -331,8 +337,7 @@ def create_payout_csv(
             f"Total overall revenue from direct Bandcamp sales, BMR Day Bandcamp Annual Subscriptions, and Bandcamp annual Subscriptions purchased on or before {release_info_data[release_catalog_number]['release_date']}",
             f"Total artist-specific revenue from direct Bandcamp sales, BMR Day Bandcamp Annual Subscriptions, and Bandcamp annual Subscriptions purchased on or before {release_info_data[release_catalog_number]['release_date']} (relevant for multi-artist releases)",
             "Amount of mastering fee left to recover for overall release before split",
-            "Total revenue from overall release after mastering fee recovered",
-            "Total artist-specific revenue from release after mastering fee recovered (relevant for multi-artist releases)",
+            "Total artist-specific revenue from release after mastering fee recovered",
             f"{results_headers_artist_name} split",
             "BMR Split",
             f"Amount Owed {results_headers_artist_name}",
@@ -352,7 +357,6 @@ def create_payout_csv(
             release_catalog_number, overall_net_revenue
         )
 
-        # TODO: add logic to to calculate artist-specific share if overall release mastering fee is recovered in the current payout cycle
         release_broke_even = False
         if mastering_fee_left == 0.00:
             release_broke_even = True
@@ -364,20 +368,26 @@ def create_payout_csv(
                 total_artist_specific_revenue_after_mastering_fee_recovered
             ) = mastering_fee_left
         elif mastering_fee_left < 0.00:
-            total_revenue_after_mastering_fee_recovered = (
-                total_artist_specific_revenue_after_mastering_fee_recovered
-            ) = (mastering_fee_left * -1.00)
+            total_revenue_after_mastering_fee_recovered = mastering_fee_left * -1.00
+            total_artist_specific_revenue_after_mastering_fee_recovered = (
+                "turned_a_profit_this_cycle"
+            )
             mastering_fee_left = 0.00
         else:
             total_revenue_after_mastering_fee_recovered = (
                 total_artist_specific_revenue_after_mastering_fee_recovered
             ) = 0.00
 
-        net_revenue_after_mastering_fee_recovered = (
+        artist_specific_net_revenue_after_mastering_fee_recovered = (
             overall_net_revenue
             if total_revenue_after_mastering_fee_recovered == "Not Applicable"
             else total_revenue_after_mastering_fee_recovered
         )
+
+        if release_info_data[release_catalog_number]["multiple_artist_release"]:
+            artist_specific_net_revenue = release_info_data[release_catalog_number][
+                "bandcamp_revenue_by_artist"
+            ][artist]
 
         if (
             release_info_data[release_catalog_number]["multiple_artist_release"]
@@ -396,33 +406,51 @@ def create_payout_csv(
                 ]
                 + release_artist_specific_subscription_revenue_share
             )
-            # TODO: add logic to to calculate artist-specific share if overall release mastering fee is recovered in the current payout cycle
-        
-        # TODO: add logic to to calculate artist-specific payout results if overall release mastering fee is recovered in the current payout cycle
+
+        if (
+            release_info_data[release_catalog_number]["multiple_artist_release"]
+            and total_artist_specific_revenue_after_mastering_fee_recovered
+            == "turned_a_profit_this_cycle"
+        ):
+            artist_specific_net_revenue_after_mastering_fee_recovered = (
+                float(artist_specific_net_revenue / overall_net_revenue)
+                * artist_specific_net_revenue_after_mastering_fee_recovered
+            )
+        elif release_info_data[release_catalog_number]["multiple_artist_release"]:
+            artist_specific_net_revenue_after_mastering_fee_recovered = (
+                artist_specific_net_revenue
+                if total_revenue_after_mastering_fee_recovered == "Not Applicable"
+                else total_revenue_after_mastering_fee_recovered
+            )
+
         release_results = [
             release_info_data[release_catalog_number]["total_bandcamp_revenue"],
-            release_info_data[release_catalog_number]["bandcamp_revenue_by_artist"][
-                artist
-            ] if release_info_data[release_catalog_number]["multiple_artist_release"] else release_info_data[release_catalog_number]["total_bandcamp_revenue"],
+            (
+                release_info_data[release_catalog_number]["bandcamp_revenue_by_artist"][
+                    artist
+                ]
+                if release_info_data[release_catalog_number]["multiple_artist_release"]
+                else release_info_data[release_catalog_number]["total_bandcamp_revenue"]
+            ),
             overall_release_subscription_revenue_share,
             release_artist_specific_subscription_revenue_share,
             overall_net_revenue,
             artist_specific_net_revenue,
             mastering_fee_left,
-            'total_revenue_after_mastering_fee_recovered',
+            artist_specific_net_revenue_after_mastering_fee_recovered,
             (
-                net_revenue_after_mastering_fee_recovered * 0.60
+                artist_specific_net_revenue_after_mastering_fee_recovered * 0.60
                 if mastering_fee_left == "Not Applicable" or mastering_fee_left == 0.00
                 else 0.00
             ),
             (
-                net_revenue_after_mastering_fee_recovered * 0.40
+                artist_specific_net_revenue_after_mastering_fee_recovered * 0.40
                 if mastering_fee_left == "Not Applicable"
                 or (mastering_fee_left == 0.00 and not release_broke_even)
                 else overall_net_revenue
             ),
             (
-                net_revenue_after_mastering_fee_recovered * 0.60
+                artist_specific_net_revenue_after_mastering_fee_recovered * 0.60
                 if mastering_fee_left == "Not Applicable" or mastering_fee_left == 0.00
                 else 0.00
             ),
