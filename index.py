@@ -195,11 +195,11 @@ def calculate_subscription_revenue_share_for_release(catalog_number: str) -> flo
     next_bmr_day_date = datetime(latest_bmr_day_year + 1, 6, 6)
     release_date = release_info_data[catalog_number]["release_date"]
     for subscriber_id in subscription_revenue_data:
+        amount_received = float(
+            subscription_revenue_data[subscriber_id]["amount_received"]
+        )
         if subscription_revenue_data[subscriber_id]["tier_2_subscriber"]:
-            subscription_revenue_data[subscriber_id]["amount_received"] = (
-                float(subscription_revenue_data[subscriber_id]["amount_received"])
-                - 12.87
-            )
+            amount_received -= 12.87
         subscriber_since = datetime(
             int(subscription_revenue_data[subscriber_id]["subscriber_since"][-4:]),
             int(subscription_revenue_data[subscriber_id]["subscriber_since"][:2]),
@@ -214,9 +214,9 @@ def calculate_subscription_revenue_share_for_release(catalog_number: str) -> flo
             ].lower()
             and not subscription_revenue_data[subscriber_id]["all_releases_paid"]
         ):
-            revenue_share_owed += float(
-                subscription_revenue_data[subscriber_id]["amount_received"]
-            ) / float(bmr_day_subscriber_split_count)
+            revenue_share_owed += amount_received / float(
+                bmr_day_subscriber_split_count
+            )
         elif (
             not subscription_revenue_data[subscriber_id]["new_bmr_day_subscriber"]
             and datetime(
@@ -246,9 +246,7 @@ def calculate_subscription_revenue_share_for_release(catalog_number: str) -> flo
             ].lower()
             and not subscription_revenue_data[subscriber_id]["all_releases_paid"]
         ):
-            revenue_share_owed += float(
-                subscription_revenue_data[subscriber_id]["amount_received"]
-            ) / float(12)
+            revenue_share_owed += amount_received / float(12)
     return revenue_share_owed
 
 
@@ -423,16 +421,6 @@ def create_payout_csv(
                             ) * float(
                                 distribution_owed_artist
                             )
-                            print(
-                                artist,
-                                float(revenue_data_item["net_amount"])
-                                - float(revenue_data_item["paypal_payout_fee"]),
-                                (
-                                    float(revenue_data_item["net_amount"])
-                                    - float(revenue_data_item["paypal_payout_fee"])
-                                )
-                                * float(distribution_owed_artist),
-                            )
                             csvwriter.writerow(revenue_data_item.values())
 
         else:
@@ -584,7 +572,11 @@ def create_payout_csv(
         ):
             release_artist_specific_subscription_revenue_share = (
                 overall_release_subscription_revenue_share
-                * float(f"0.{distribution_rules["overall_release"][artist_name]}")
+                * float(
+                    "1"
+                    if distribution_rules["overall_release"][artist_name] == "100"
+                    else f"0.{distribution_rules["overall_release"][artist_name]}"
+                )
             )
             artist_specific_total_net_revenue += (
                 release_artist_specific_subscription_revenue_share
