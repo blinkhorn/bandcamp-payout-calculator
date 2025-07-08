@@ -86,8 +86,8 @@ if routenote_revenue_data_file_name:
             routenote_revenue_data_item = {
                 "date": f"{parse_data(row[9])[:2]}/01/{parse_data(row[10])}",
                 "platform": "routenote",
-                "album_artist": parse_data(row[5]),
                 "item_type": "track" if parse_data(row[2]) else "album",
+                "album_artist": parse_data(row[5]),
                 "item_name": (
                     parse_data(row[2]) if parse_data(row[2]) else parse_data(row[4])
                 ),
@@ -97,9 +97,16 @@ if routenote_revenue_data_file_name:
                 "download_unit_count": parse_data(row[15]),
                 "stream_unit_count": parse_data(row[17]),
                 "total_revenue_usd": parse_data(row[18]),
+                "bandcamp_item_price": "Not Applicable",
+                "bandcamp_quantity": "Not Applicable",
+                "bandcamp_sub_total": "Not Applicable",
+                "bandcamp_additional_fan_contribution": "Not Applicable",
+                "bandcamp_transaction_fee": "Not Applicable",
+                "bandcamp_revenue_fee": "Not Applicable",
                 # TODO: if routenote % taken out on payout, add code for that here
                 "paypal_payout_fee": calculate_paypal_fee(parse_data(float(row[18]))),
                 "net_amount": parse_data(row[18]),
+                "bandcamp_buyer_country": "Not Applicable",
                 "catalog_number": release_catalog_number_by_upc_hash[
                     parse_data(row[8])
                 ],
@@ -154,7 +161,6 @@ with open(
                 "buyer_country": parse_data(row[47]),
                 "catalog_number": parse_data(row[32]),
             }
-            print(parse_data(row[32]))
             if parse_data(row[32]) not in bandcamp_sales_data:
                 bandcamp_sales_data[parse_data(row[32])] = [bandcamp_sale]
             else:
@@ -357,24 +363,16 @@ def create_payout_csv(
                 release_catalog_number
             ]
         bandcamp_release_sales_data = []
-        # print(bandcamp_sales_data.keys())
         if release_catalog_number in bandcamp_sales_data:
             bandcamp_release_sales_data = bandcamp_sales_data[release_catalog_number]
-        # print(bandcamp_release_sales_data)
         csvwriter.writerow(CSV_ROWS)
         if len(routenote_release_revenue_data):
             for revenue_data_item in routenote_release_revenue_data:
-                if (
-                    not release_info_data[release_catalog_number][
-                        "multiple_artist_release"
-                    ]
-                    or distribution_rules["current_index"] == 0  # TODO: check
-                ):
-                    release_info_data[release_catalog_number][
-                        "total_routenote_revenue"
-                    ] += float(revenue_data_item["net_amount"]) - float(
-                        revenue_data_item["paypal_payout_fee"]
-                    )
+                release_info_data[release_catalog_number][
+                    "total_routenote_revenue"
+                ] += float(revenue_data_item["net_amount"]) - float(
+                    revenue_data_item["paypal_payout_fee"]
+                )
                 if not release_info_data[release_catalog_number][
                     "multiple_artist_release"
                 ]:
@@ -419,27 +417,33 @@ def create_payout_csv(
                             )
                             release_info_data[release_catalog_number][
                                 "routenote_revenue_by_artist"
-                            ][artist] += float(revenue_data_item["net_amount"]) - float(
-                                revenue_data_item["paypal_payout_fee"]
+                            ][artist] += (
+                                float(revenue_data_item["net_amount"])
+                                - float(revenue_data_item["paypal_payout_fee"])
                             ) * float(
                                 distribution_owed_artist
                             )
+                            print(
+                                artist,
+                                float(revenue_data_item["net_amount"])
+                                - float(revenue_data_item["paypal_payout_fee"]),
+                                (
+                                    float(revenue_data_item["net_amount"])
+                                    - float(revenue_data_item["paypal_payout_fee"])
+                                )
+                                * float(distribution_owed_artist),
+                            )
                             csvwriter.writerow(revenue_data_item.values())
+
         else:
             csvwriter.writerow(
                 ["No direct RouteNote Revenue this accounting cycle"] * len(CSV_ROWS)
             )
         if len(bandcamp_release_sales_data):
             for sale in bandcamp_release_sales_data:
-                if (
-                    not release_info_data[release_catalog_number][
-                        "multiple_artist_release"
-                    ]
-                    or distribution_rules["current_index"] == 0
-                ):
-                    release_info_data[release_catalog_number][
-                        "total_bandcamp_revenue"
-                    ] += float(sale["net_amount"]) - float(sale["paypal_payout_fee"])
+                release_info_data[release_catalog_number][
+                    "total_bandcamp_revenue"
+                ] += float(sale["net_amount"]) - float(sale["paypal_payout_fee"])
                 if not release_info_data[release_catalog_number][
                     "multiple_artist_release"
                 ]:
@@ -482,8 +486,9 @@ def create_payout_csv(
                             )
                             release_info_data[release_catalog_number][
                                 "bandcamp_revenue_by_artist"
-                            ][artist] += float(sale["net_amount"]) - float(
-                                sale["paypal_payout_fee"]
+                            ][artist] += (
+                                float(sale["net_amount"])
+                                - float(sale["paypal_payout_fee"])
                             ) * float(
                                 distribution_owed_artist
                             )
@@ -504,14 +509,12 @@ def create_payout_csv(
 
         results_headers = [
             "Total overall release revenue from direct Bandcamp sales",
-            "Total overall release revenue from RouteNote distribution",
             "Total artist-specific revenue from direct Bandcamp sales (relevant for multi-artist releases)",
+            "Total overall release revenue from RouteNote distribution",
             "Total artist-specific revenue from RouteNote distribution (relevant for multi-artist releases)",
             f"Total overall release revenue from BMR Day Bandcamp Annual Subscriptions or Bandcamp annual Subscriptions purchased on or before {release_info_data[release_catalog_number]['release_date']}",
             f"Total artist-specific revenue from BMR Day Bandcamp Annual Subscriptions or Bandcamp annual Subscriptions purchased on or before {release_info_data[release_catalog_number]['release_date']} (relevant for multi-artist releases)",
-            f"Total overall release revenue from direct Bandcamp sales + BMR Day Bandcamp Annual Subscriptions + Bandcamp annual Subscriptions purchased on or before {release_info_data[release_catalog_number]['release_date']}",
             f"Total overall release revenue from direct Bandcamp sales + BMR Day Bandcamp Annual Subscriptions + Bandcamp annual Subscriptions purchased on or before {release_info_data[release_catalog_number]['release_date']} + RouteNote Revenue",
-            f"Total artist-specific revenue from direct Bandcamp sales + BMR Day Bandcamp Annual Subscriptions + Bandcamp annual Subscriptions purchased on or before {release_info_data[release_catalog_number]['release_date']} (relevant for multi-artist releases)",
             f"Total artist-specific revenue from direct Bandcamp sales + BMR Day Bandcamp Annual Subscriptions + Bandcamp annual Subscriptions purchased on or before {release_info_data[release_catalog_number]['release_date']}  + RouteNote Revenue (relevant for multi-artist releases)",
             "Amount of mastering fee left to recover for overall release before split",
             "Total revenue from overall release after mastering fee recovered",
@@ -568,9 +571,9 @@ def create_payout_csv(
         )
 
         if release_info_data[release_catalog_number]["multiple_artist_release"]:
-            artist_specific_total_net_revenue = release_info_data[release_catalog_number][
-                "bandcamp_revenue_by_artist"
-            ][artist]
+            artist_specific_total_net_revenue = release_info_data[
+                release_catalog_number
+            ]["bandcamp_revenue_by_artist"][artist]
 
         if (
             release_info_data[release_catalog_number]["multiple_artist_release"]
@@ -605,7 +608,6 @@ def create_payout_csv(
 
         release_results = [
             release_info_data[release_catalog_number]["total_bandcamp_revenue"],
-            release_info_data[release_catalog_number]["total_routenote_revenue"],
             (
                 release_info_data[release_catalog_number]["bandcamp_revenue_by_artist"][
                     artist
@@ -613,12 +615,15 @@ def create_payout_csv(
                 if release_info_data[release_catalog_number]["multiple_artist_release"]
                 else release_info_data[release_catalog_number]["total_bandcamp_revenue"]
             ),
+            release_info_data[release_catalog_number]["total_routenote_revenue"],
             (
-                release_info_data[release_catalog_number]["routenote_revenue_by_artist"][
-                    artist
-                ]
+                release_info_data[release_catalog_number][
+                    "routenote_revenue_by_artist"
+                ][artist]
                 if release_info_data[release_catalog_number]["multiple_artist_release"]
-                else release_info_data[release_catalog_number]["total_routenote_revenue"]
+                else release_info_data[release_catalog_number][
+                    "total_routenote_revenue"
+                ]
             ),
             overall_release_subscription_revenue_share,
             release_artist_specific_subscription_revenue_share,
@@ -655,12 +660,17 @@ def create_payout_csv(
             ),
         ]
         csvwriter.writerow(release_results)
+        if release_info_data[release_catalog_number]["multiple_artist_release"]:
+            release_info_data[release_catalog_number]["total_routenote_revenue"] = 0.00
+            release_info_data[release_catalog_number]["total_bandcamp_revenue"] = 0.00
 
 
 for release_catalog_number in release_info_data:
     artist_split_distribution_by_track_and_overall_release = None
-    if release_catalog_number not in RELEASES_NOT_INCLUDED_IN_BMR_DAY_PAYOUTS or (
-        release_catalog_number != "BMRX001" and "BMR000" in bandcamp_sales_data
+    if (
+        release_catalog_number not in RELEASES_NOT_INCLUDED_IN_BMR_DAY_PAYOUTS
+        or (release_catalog_number != "BMRX001" and "BMR000" in bandcamp_sales_data)
+        or routenote_revenue_data
     ):
         if release_info_data[release_catalog_number]["multiple_artist_release"]:
             distribution_rules = (
