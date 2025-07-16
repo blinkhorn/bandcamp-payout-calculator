@@ -3,8 +3,8 @@ import sys
 from datetime import datetime
 
 
-def calculate_paypal_fee(net_amount: float) -> float:
-    rounded_net_amount = round(net_amount * 0.01, 2)
+def calculate_paypal_fee(net_amount: float, fee_percentage: float) -> float:
+    rounded_net_amount = round(net_amount * fee_percentage, 2)
     return rounded_net_amount if rounded_net_amount < 1.00 else 1.00
 
 
@@ -20,7 +20,9 @@ RELEASES_NOT_INCLUDED_IN_BMR_DAY_PAYOUTS = {"BMRX001", "BMR000"}
 bandcamp_raw_sales_report_file_name = sys.argv[1]
 release_info_file_name = sys.argv[2]
 subscription_revenue_data_file_name = sys.argv[3]
-routenote_revenue_data_file_name = sys.argv[4] if sys.argv[4] else None
+routenote_revenue_data_file_name = None
+if len(sys.argv) > 4:
+    routenote_revenue_data_file_name = sys.argv[4]
 
 CSV_ROWS = [
     "date",
@@ -103,8 +105,7 @@ if routenote_revenue_data_file_name:
                 "bandcamp_additional_fan_contribution": "Not Applicable",
                 "bandcamp_transaction_fee": "Not Applicable",
                 "bandcamp_revenue_fee": "Not Applicable",
-                # TODO: if routenote % taken out on payout, add code for that here
-                "paypal_payout_fee": calculate_paypal_fee(parse_data(float(row[18]))),
+                "paypal_payout_fee": calculate_paypal_fee(parse_data(float(row[18])),  0.045),
                 "net_amount": parse_data(row[18]),
                 "bandcamp_buyer_country": "Not Applicable",
                 "catalog_number": release_catalog_number_by_upc_hash[
@@ -162,7 +163,7 @@ with open(
                 "additional_fan_contribution": parse_data(row[10]),
                 "transaction_fee": parse_data(row[16]),
                 "bandcamp_revenue_fee": parse_data(row[22]),
-                "paypal_payout_fee": calculate_paypal_fee(parse_data(float(row[27]))),
+                "paypal_payout_fee": calculate_paypal_fee(parse_data(float(row[27])), 0.01),
                 "net_amount": parse_data(row[27]),
                 "buyer_country": parse_data(row[47]),
                 "catalog_number": parse_data(row[32]),
@@ -362,7 +363,7 @@ def create_payout_csv(
     ) as csvfile:
         csvwriter = csv.writer(csvfile, delimiter=",")
         routenote_release_revenue_data = []
-        if release_catalog_number in routenote_revenue_data:
+        if routenote_revenue_data and release_catalog_number in routenote_revenue_data:
             routenote_release_revenue_data = routenote_revenue_data[
                 release_catalog_number
             ]
