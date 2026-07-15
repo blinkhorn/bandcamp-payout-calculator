@@ -1,6 +1,113 @@
 import csv
 import sys
 from datetime import datetime
+import pandas as pd
+from reportlab.lib import colors
+from reportlab.lib.pagesizes import landscape, letter
+from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Spacer, Paragraph
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+
+
+import pandas as pd
+from reportlab.lib import colors
+from reportlab.lib.pagesizes import letter, landscape
+from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Spacer, Paragraph
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+
+current_date = datetime.today().strftime("%Y-%m-%d")
+
+def csv_to_pdf_table(csv_filename: str, pdf_filename:str, catalog_number:str) -> None:
+    try:
+        csv_data = pd.read_csv(csv_filename).fillna('')
+    except FileNotFoundError:
+        print(f"Error: The file {csv_filename} was not found.")
+        return
+
+    pdf_doc = SimpleDocTemplate(
+        pdf_filename, 
+        pagesize=landscape(letter),
+        rightMargin=15, leftMargin=15, topMargin=20, bottomMargin=20
+    )
+    story = []
+
+    page_width, _ = landscape(letter)
+    available_width = page_width - 30
+    col_width = available_width / len(csv_data.columns)
+    col_widths_list = [col_width] * len(csv_data.columns)
+
+    styles = getSampleStyleSheet()
+    
+    title_style = ParagraphStyle(
+        'ReportTitle',
+        parent=styles['Title'],
+        fontName='Helvetica-Bold',
+        fontSize=16,
+        leading=18,
+        textColor=colors.HexColor("#1A365D"),
+        alignment=0,
+        spaceAfter=10
+    )
+    
+    header_cell_style = ParagraphStyle(
+        'HeaderStyle',
+        parent=styles['Normal'],
+        fontName='Helvetica-Bold',
+        fontSize=6,
+        leading=7,
+        textColor=colors.whitesmoke,
+        alignment=1
+    )
+    
+    body_cell_style = ParagraphStyle(
+        'BodyStyle',
+        parent=styles['Normal'],
+        fontName='Helvetica',
+        fontSize=5,
+        leading=6,
+        textColor=colors.HexColor("#1E293B"),
+        alignment=0
+    )
+
+    story.append(Paragraph(f"{catalog_number} | BMR BI-Annual Revenue Report ({current_date})", title_style))
+    story.append(Spacer(1, 5))
+
+    headers = [Paragraph(str(col), header_cell_style) for col in csv_data.columns]
+    
+    data_rows = []
+    for _, row in csv_data.iterrows():
+        wrapped_row = []
+        for val in row:
+            cell_text = str(val).strip()
+            
+            if len(cell_text) > 12 and ' ' not in cell_text:
+                cell_text = "".join(cell_text[i:i+12] for i in range(0, len(cell_text), 12))
+                
+            wrapped_row.append(Paragraph(cell_text, body_cell_style))
+        data_rows.append(wrapped_row)
+        
+    table_data = [headers] + data_rows
+
+    pdf_table = Table(table_data, colWidths=col_widths_list, repeatRows=1)
+
+    style_config = TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor("#1A365D")),
+        ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+        ('LEFTPADDING', (0, 0), (-1, -1), 2),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 2),
+        ('TOPPADDING', (0, 0), (-1, -1), 3),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 3),
+        
+        ('GRID', (0, 0), (-1, -1), 0.4, colors.HexColor("#CBD5E1")),
+    ])
+
+    for i in range(1, len(table_data)):
+        if i % 2 == 0:
+            style_config.add('BACKGROUND', (0, i), (-1, i), colors.HexColor("#F8FAFC"))
+
+    pdf_table.setStyle(style_config)
+    story.append(pdf_table)
+
+    pdf_doc.build(story)
 
 
 def calculate_paypal_fee(net_amount: float, fee_percentage: float) -> float:
@@ -105,7 +212,9 @@ if routenote_revenue_data_file_name:
                 "bandcamp_additional_fan_contribution": "Not Applicable",
                 "bandcamp_transaction_fee": "Not Applicable",
                 "bandcamp_revenue_fee": "Not Applicable",
-                "paypal_payout_fee": calculate_paypal_fee(parse_data(float(row[18])),  0.045),
+                "paypal_payout_fee": calculate_paypal_fee(
+                    parse_data(float(row[18])), 0.045
+                ),
                 "net_amount": parse_data(row[18]),
                 "bandcamp_buyer_country": "Not Applicable",
                 "catalog_number": release_catalog_number_by_upc_hash[
@@ -163,7 +272,9 @@ with open(
                 "additional_fan_contribution": parse_data(row[10]),
                 "transaction_fee": parse_data(row[16]),
                 "bandcamp_revenue_fee": parse_data(row[22]),
-                "paypal_payout_fee": calculate_paypal_fee(parse_data(float(row[27])), 0.01),
+                "paypal_payout_fee": calculate_paypal_fee(
+                    parse_data(float(row[27])), 0.01
+                ),
                 "net_amount": parse_data(row[27]),
                 "buyer_country": parse_data(row[47]),
                 "catalog_number": parse_data(row[32]),
@@ -304,9 +415,6 @@ def parse_artist_split_distribution_by_track_and_overall_release(
             distribution_rules[music_recording_item][artist_name] = split_amount
 
     return distribution_rules
-
-
-current_date = datetime.today().strftime("%Y-%m-%d")
 
 
 def create_payout_csv(
@@ -606,63 +714,120 @@ def create_payout_csv(
             )
 
         release_results = [
-            release_info_data[release_catalog_number]["total_bandcamp_revenue"],
-            (
-                release_info_data[release_catalog_number]["bandcamp_revenue_by_artist"][
-                    artist
-                ]
-                if release_info_data[release_catalog_number]["multiple_artist_release"]
-                else release_info_data[release_catalog_number]["total_bandcamp_revenue"]
-            ),
-            release_info_data[release_catalog_number]["total_routenote_revenue"],
-            (
-                release_info_data[release_catalog_number][
-                    "routenote_revenue_by_artist"
-                ][artist]
-                if release_info_data[release_catalog_number]["multiple_artist_release"]
-                else release_info_data[release_catalog_number][
-                    "total_routenote_revenue"
-                ]
-            ),
-            overall_release_subscription_revenue_share,
-            release_artist_specific_subscription_revenue_share,
-            overall_total_net_revenue,
-            artist_specific_total_net_revenue,
-            mastering_fee_left,
-            total_net_revenue_after_mastering_fee_recovered,
-            artist_specific_total_net_revenue_after_mastering_fee_recovered,
-            (
-                total_net_revenue_after_mastering_fee_recovered * 0.60
-                if mastering_fee_left == "Not Applicable" or mastering_fee_left == 0.00
-                else 0.00
+            round(
+                release_info_data[release_catalog_number]["total_bandcamp_revenue"], 3
             ),
             (
-                artist_specific_total_net_revenue_after_mastering_fee_recovered * 0.60
-                if mastering_fee_left == "Not Applicable" or mastering_fee_left == 0.00
-                else 0.00
+                round(
+                    (
+                        release_info_data[release_catalog_number][
+                            "bandcamp_revenue_by_artist"
+                        ][artist]
+                        if release_info_data[release_catalog_number][
+                            "multiple_artist_release"
+                        ]
+                        else release_info_data[release_catalog_number][
+                            "total_bandcamp_revenue"
+                        ]
+                    ),
+                    3,
+                )
+            ),
+            round(
+                release_info_data[release_catalog_number]["total_routenote_revenue"], 3
             ),
             (
-                artist_specific_total_net_revenue_after_mastering_fee_recovered * 0.40
-                if mastering_fee_left == "Not Applicable"
-                or (mastering_fee_left == 0.00 and not release_broke_even)
-                else overall_total_net_revenue
+                round(
+                    (
+                        release_info_data[release_catalog_number][
+                            "routenote_revenue_by_artist"
+                        ][artist]
+                        if release_info_data[release_catalog_number][
+                            "multiple_artist_release"
+                        ]
+                        else release_info_data[release_catalog_number][
+                            "total_routenote_revenue"
+                        ]
+                    ),
+                    3,
+                )
+            ),
+            round(overall_release_subscription_revenue_share, 3),
+            round(release_artist_specific_subscription_revenue_share, 3),
+            round(overall_total_net_revenue, 3),
+            round(artist_specific_total_net_revenue, 3),
+            (
+                round(mastering_fee_left, 3)
+                if isinstance(mastering_fee_left, float)
+                else mastering_fee_left
+            ),
+            round(total_net_revenue_after_mastering_fee_recovered, 3),
+            round(artist_specific_total_net_revenue_after_mastering_fee_recovered, 3),
+            (
+                round(
+                    (
+                        total_net_revenue_after_mastering_fee_recovered * 0.60
+                        if mastering_fee_left == "Not Applicable"
+                        or mastering_fee_left == 0.00
+                        else 0.00
+                    ),
+                    3,
+                )
             ),
             (
-                total_net_revenue_after_mastering_fee_recovered * 0.60
-                if mastering_fee_left == "Not Applicable" or mastering_fee_left == 0.00
-                else 0.00
+                round(
+                    (
+                        artist_specific_total_net_revenue_after_mastering_fee_recovered
+                        * 0.60
+                        if mastering_fee_left == "Not Applicable"
+                        or mastering_fee_left == 0.00
+                        else 0.00
+                    ),
+                    3,
+                )
             ),
             (
-                artist_specific_total_net_revenue_after_mastering_fee_recovered * 0.60
-                if mastering_fee_left == "Not Applicable" or mastering_fee_left == 0.00
-                else 0.00
+                round(
+                    (
+                        artist_specific_total_net_revenue_after_mastering_fee_recovered
+                        * 0.40
+                        if mastering_fee_left == "Not Applicable"
+                        or (mastering_fee_left == 0.00 and not release_broke_even)
+                        else overall_total_net_revenue
+                    ),
+                    3,
+                )
+            ),
+            (
+                round(
+                    (
+                        total_net_revenue_after_mastering_fee_recovered * 0.60
+                        if mastering_fee_left == "Not Applicable"
+                        or mastering_fee_left == 0.00
+                        else 0.00
+                    ),
+                    3,
+                )
+            ),
+            (
+                round(
+                    (
+                        artist_specific_total_net_revenue_after_mastering_fee_recovered
+                        * 0.60
+                        if mastering_fee_left == "Not Applicable"
+                        or mastering_fee_left == 0.00
+                        else 0.00
+                    ),
+                    3,
+                )
             ),
         ]
         csvwriter.writerow(release_results)
         if release_info_data[release_catalog_number]["multiple_artist_release"]:
             release_info_data[release_catalog_number]["total_routenote_revenue"] = 0.00
             release_info_data[release_catalog_number]["total_bandcamp_revenue"] = 0.00
-
+    
+    csv_to_pdf_table(f"{current_date}_{release_catalog_number_report_id}_revenue_report.csv", f"{current_date}_{release_catalog_number_report_id}_revenue_report.pdf", release_catalog_number_report_id)
 
 for release_catalog_number in release_info_data:
     artist_split_distribution_by_track_and_overall_release = None
