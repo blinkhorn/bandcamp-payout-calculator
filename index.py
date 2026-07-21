@@ -16,17 +16,21 @@ from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 
 current_date = datetime.today().strftime("%Y-%m-%d")
 
-def csv_to_pdf_table(csv_filename: str, pdf_filename:str, catalog_number:str) -> None:
+
+def csv_to_pdf_table(csv_filename: str, pdf_filename: str, catalog_number: str) -> None:
     try:
-        csv_data = pd.read_csv(csv_filename).fillna('')
+        csv_data = pd.read_csv(csv_filename).fillna("")
     except FileNotFoundError:
         print(f"Error: The file {csv_filename} was not found.")
         return
 
     pdf_doc = SimpleDocTemplate(
-        pdf_filename, 
+        pdf_filename,
         pagesize=landscape(letter),
-        rightMargin=15, leftMargin=15, topMargin=20, bottomMargin=20
+        rightMargin=15,
+        leftMargin=15,
+        topMargin=20,
+        bottomMargin=20,
     )
     story = []
 
@@ -36,73 +40,81 @@ def csv_to_pdf_table(csv_filename: str, pdf_filename:str, catalog_number:str) ->
     col_widths_list = [col_width] * len(csv_data.columns)
 
     styles = getSampleStyleSheet()
-    
+
     title_style = ParagraphStyle(
-        'ReportTitle',
-        parent=styles['Title'],
-        fontName='Helvetica-Bold',
+        "ReportTitle",
+        parent=styles["Title"],
+        fontName="Helvetica-Bold",
         fontSize=16,
         leading=18,
         textColor=colors.HexColor("#1A365D"),
         alignment=0,
-        spaceAfter=10
+        spaceAfter=10,
     )
-    
+
     header_cell_style = ParagraphStyle(
-        'HeaderStyle',
-        parent=styles['Normal'],
-        fontName='Helvetica-Bold',
+        "HeaderStyle",
+        parent=styles["Normal"],
+        fontName="Helvetica-Bold",
         fontSize=6,
         leading=7,
         textColor=colors.whitesmoke,
-        alignment=1
+        alignment=1,
     )
-    
+
     body_cell_style = ParagraphStyle(
-        'BodyStyle',
-        parent=styles['Normal'],
-        fontName='Helvetica',
+        "BodyStyle",
+        parent=styles["Normal"],
+        fontName="Helvetica",
         fontSize=5,
         leading=6,
         textColor=colors.HexColor("#1E293B"),
-        alignment=0
+        alignment=0,
     )
 
-    story.append(Paragraph(f"{catalog_number} | BMR BI-Annual Revenue Report ({current_date})", title_style))
+    story.append(
+        Paragraph(
+            f"{catalog_number} | BMR BI-Annual Revenue Report ({current_date})",
+            title_style,
+        )
+    )
     story.append(Spacer(1, 5))
 
     headers = [Paragraph(str(col), header_cell_style) for col in csv_data.columns]
-    
+
     data_rows = []
     for _, row in csv_data.iterrows():
         wrapped_row = []
         for val in row:
             cell_text = str(val).strip()
-            
-            if len(cell_text) > 12 and ' ' not in cell_text:
-                cell_text = "".join(cell_text[i:i+12] for i in range(0, len(cell_text), 12))
-                
+
+            if len(cell_text) > 12 and " " not in cell_text:
+                cell_text = "".join(
+                    cell_text[i : i + 12] for i in range(0, len(cell_text), 12)
+                )
+
             wrapped_row.append(Paragraph(cell_text, body_cell_style))
         data_rows.append(wrapped_row)
-        
+
     table_data = [headers] + data_rows
 
     pdf_table = Table(table_data, colWidths=col_widths_list, repeatRows=1)
 
-    style_config = TableStyle([
-        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor("#1A365D")),
-        ('VALIGN', (0, 0), (-1, -1), 'TOP'),
-        ('LEFTPADDING', (0, 0), (-1, -1), 2),
-        ('RIGHTPADDING', (0, 0), (-1, -1), 2),
-        ('TOPPADDING', (0, 0), (-1, -1), 3),
-        ('BOTTOMPADDING', (0, 0), (-1, -1), 3),
-        
-        ('GRID', (0, 0), (-1, -1), 0.4, colors.HexColor("#CBD5E1")),
-    ])
+    style_config = TableStyle(
+        [
+            ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#1A365D")),
+            ("VALIGN", (0, 0), (-1, -1), "TOP"),
+            ("LEFTPADDING", (0, 0), (-1, -1), 2),
+            ("RIGHTPADDING", (0, 0), (-1, -1), 2),
+            ("TOPPADDING", (0, 0), (-1, -1), 3),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
+            ("GRID", (0, 0), (-1, -1), 0.4, colors.HexColor("#CBD5E1")),
+        ]
+    )
 
     for i in range(1, len(table_data)):
         if i % 2 == 0:
-            style_config.add('BACKGROUND', (0, i), (-1, i), colors.HexColor("#F8FAFC"))
+            style_config.add("BACKGROUND", (0, i), (-1, i), colors.HexColor("#F8FAFC"))
 
     pdf_table.setStyle(style_config)
     story.append(pdf_table)
@@ -127,9 +139,10 @@ RELEASES_NOT_INCLUDED_IN_BMR_DAY_PAYOUTS = {"BMRX001", "BMR000"}
 bandcamp_raw_sales_report_file_name = sys.argv[1]
 release_info_file_name = sys.argv[2]
 subscription_revenue_data_file_name = sys.argv[3]
+artist_info_file_name = sys.argv[4]
 routenote_revenue_data_file_name = None
-if len(sys.argv) > 4:
-    routenote_revenue_data_file_name = sys.argv[4]
+if len(sys.argv) > 5:
+    routenote_revenue_data_file_name = sys.argv[5]
 
 CSV_ROWS = [
     "date",
@@ -164,7 +177,8 @@ with open(release_info_file_name, newline="") as release_info_csv_file:
     for row in release_info_reader:
         release_catalog_number_by_upc_hash[parse_data(row[8])] = parse_data(row[0])
         release_info_data[parse_data(row[0])] = {
-            "artist_name": parse_data(row[1]),
+            "artist_name": parse_data(row[1]).split("/")[0],
+            "artist_email": parse_data(row[1]).split("/")[1],
             "release_date": parse_data(row[2]),
             "mastering_opt_in": parse_data(row[3]) == "yes",
             "mastering_fee": float(parse_data(row[4])),
@@ -182,6 +196,21 @@ with open(release_info_file_name, newline="") as release_info_csv_file:
             if int(row[2][-4:]) > latest_bmr_day_year
             else latest_bmr_day_year
         )
+
+artist_info_data = {}
+with open(artist_info_file_name, newline="") as artist_info_csv_file:
+    artist_info_reader = csv.reader(artist_info_csv_file, delimiter=",")
+    next(artist_info_reader, None)
+    for row in artist_info_reader:
+        artist_info_data[parse_data(row[2])] = {
+            "observed_preferred_name": parse_data(row[0]),
+            "catalog_releases": parse_data(row[1]),
+            "observed_preferred_contact_method": parse_data(row[3]),
+            "preferred_payment_method": parse_data(row[4]),
+            "paypal_id": parse_data(row[5]),
+            "zelle_id": parse_data(row[6]),
+            "is_international_artist": parse_data(row[7]) == "yes",
+        }
 
 routenote_revenue_data = None
 if routenote_revenue_data_file_name:
@@ -402,17 +431,17 @@ def parse_artist_split_distribution_by_track_and_overall_release(
         if "&" in distribution_rule:
             splits_by_recording = distribution_rule.split("&")
         for split in splits_by_recording:
-            artist_name, _, split_amount = split.partition("=")
-            if artist_name in distribution_rules["recording_artists"]:
-                distribution_rules["recording_artists"][artist_name][
+            artist, _, split_amount = split.partition("=")
+            if artist in distribution_rules["recording_artists"]:
+                distribution_rules["recording_artists"][artist][
                     "payable_recordings"
                 ].append(music_recording_item)
             else:
-                distribution_rules["recording_artists"][artist_name] = {
+                distribution_rules["recording_artists"][artist] = {
                     "payable_recordings": [music_recording_item]
                 }
 
-            distribution_rules[music_recording_item][artist_name] = split_amount
+            distribution_rules[music_recording_item][artist] = split_amount
 
     return distribution_rules
 
@@ -423,8 +452,15 @@ def create_payout_csv(
     distribution_rules: dict | None = None,
 ):
     release_catalog_number_report_id = release_catalog_number
+    artist_email = (
+        artist_name.split("/")[1]
+        if artist_name
+        else release_info_data[release_catalog_number]["artist_email"]
+    )
     if release_info_data[release_catalog_number]["multiple_artist_release"]:
-        release_catalog_number_report_id = f"{artist_name}_{release_catalog_number}"
+        release_catalog_number_report_id = (
+            f"{artist_name.split('/')[0]}_{release_catalog_number}"
+        )
         if (
             "bandcamp_revenue_by_artist"
             not in release_info_data[release_catalog_number]
@@ -502,7 +538,7 @@ def create_payout_csv(
                                 "1"
                                 if distribution_rules["overall_release"][artist_name]
                                 == "100"
-                                else f"0.{distribution_rules["overall_release"][artist_name]}"
+                                else f"0.{distribution_rules["overall_release"][artist_name.split('/')[1]]}"
                             )
                             release_info_data[release_catalog_number][
                                 "routenote_revenue_by_artist"
@@ -526,7 +562,7 @@ def create_payout_csv(
                                     artist_name
                                 ]
                                 == "100"
-                                else f"0.{distribution_rules[revenue_data_item["item_name"]][artist_name]}"
+                                else f"0.{distribution_rules[revenue_data_item["item_name"]][artist_name.split('/')[1]]}"
                             )
                             release_info_data[release_catalog_number][
                                 "routenote_revenue_by_artist"
@@ -585,7 +621,7 @@ def create_payout_csv(
                                 "1"
                                 if distribution_rules[sale["item_name"]][artist_name]
                                 == "100"
-                                else f"0.{distribution_rules[sale["item_name"]][artist_name]}"
+                                else f"0.{distribution_rules[sale["item_name"]][artist_name.split('/')[1]]}"
                             )
                             release_info_data[release_catalog_number][
                                 "bandcamp_revenue_by_artist"
@@ -605,7 +641,7 @@ def create_payout_csv(
             csvwriter.writerow([None] * len(CSV_ROWS))
 
         results_headers_artist_name = (
-            artist_name
+            artist_name.split("/")[0]
             if artist_name
             else release_info_data[release_catalog_number]["artist_name"]
         )
@@ -823,11 +859,46 @@ def create_payout_csv(
             ),
         ]
         csvwriter.writerow(release_results)
+
+        if (
+            "catalog_release_revenue" in artist_info_data[artist_email]
+            and artist_info_data[artist_email]["catalog_release_revenue"] is not None
+        ):
+            artist_info_data[artist_email]["catalog_release_revenue"][
+                release_catalog_number
+            ] = round(
+                (
+                    artist_specific_total_net_revenue_after_mastering_fee_recovered
+                    * 0.60
+                    if mastering_fee_left == "Not Applicable"
+                    or mastering_fee_left == 0.00
+                    else 0.00
+                ),
+                3,
+            )
+        else:
+            artist_info_data[artist_email]["catalog_release_revenue"] = {
+                release_catalog_number: round(
+                    (
+                        artist_specific_total_net_revenue_after_mastering_fee_recovered
+                        * 0.60
+                        if mastering_fee_left == "Not Applicable"
+                        or mastering_fee_left == 0.00
+                        else 0.00
+                    ),
+                    3,
+                )
+            }
         if release_info_data[release_catalog_number]["multiple_artist_release"]:
             release_info_data[release_catalog_number]["total_routenote_revenue"] = 0.00
             release_info_data[release_catalog_number]["total_bandcamp_revenue"] = 0.00
-    
-    csv_to_pdf_table(f"{current_date}_{release_catalog_number_report_id}_revenue_report.csv", f"{current_date}_{release_catalog_number_report_id}_revenue_report.pdf", release_catalog_number_report_id)
+
+    csv_to_pdf_table(
+        f"{current_date}_{release_catalog_number_report_id}_revenue_report.csv",
+        f"{current_date}_{release_catalog_number_report_id}_revenue_report.pdf",
+        release_catalog_number_report_id,
+    )
+
 
 for release_catalog_number in release_info_data:
     artist_split_distribution_by_track_and_overall_release = None
@@ -847,3 +918,42 @@ for release_catalog_number in release_info_data:
                 create_payout_csv(release_catalog_number, artist, distribution_rules)
         else:
             create_payout_csv(release_catalog_number)
+
+for artist_name, artist_metadata in artist_info_data.items():
+    artist_email_starter_text_txt_file_name = f"{artist_name.split('@')[0]}.txt"
+    itemized_catalog_release_payouts_text = ""
+    total_amount_owed = 0.00
+    if "catalog_release_revenue" in artist_metadata:
+        for catalog_number, amount_owed in artist_metadata[
+            "catalog_release_revenue"
+        ].items():
+            itemized_catalog_release_payouts_text += (
+                f"We owe you ${amount_owed} for {catalog_number}. "
+            )
+            total_amount_owed += amount_owed
+    email_subject = f"<EMAIL SUBJECT>: {artist_metadata["catalog_releases"].replace(";", ", ")} Accounting{" + Payout" if total_amount_owed else ""} ({current_date})"
+    payout_method = (
+        artist_metadata["preferred_payment_method"]
+        if artist_metadata["preferred_payment_method"] == "zelle"
+        and total_amount_owed >= 1.00
+        else "paypal"
+    )
+    payment_method_id = artist_metadata[f"{payout_method}_id"]
+    payment_method_name_format = "PayPal" if payout_method == "paypal" else "Zelle"
+    payment_method_text = (
+        f"Since we owe you less than $1 this payout cycle and our bank requires Zelle payouts to be $1 or more, I will send you ${total_amount_owed} via PayPal to your {payment_method_id} PayPal ID"
+        if artist_metadata["preferred_payment_method"] == "zelle"
+        and total_amount_owed < 1.00
+        else f"I will send you the ${total_amount_owed} we owe you this payout cycle via {payment_method_name_format} to your {payment_method_id} {payment_method_name_format} ID"
+    )
+    payment_email_text = f"{payment_method_text} on Friday. If you would like me to send the ${total_amount_owed} to a different {payment_method_name_format} ID, please let me know before Friday."
+    with open(artist_email_starter_text_txt_file_name, "w", encoding="utf-8") as file:
+        file.write(f"{email_subject}\n\n\n\n\n")
+        file.write(f"Hey {artist_metadata["observed_preferred_name"]},\n\n")
+        file.write(
+            f"I hope you're well! Here is the accounting for the past 6 months for: {artist_metadata["catalog_releases"].replace(";", ", ")}. {itemized_catalog_release_payouts_text}In total, we owe you ${total_amount_owed}. {payment_email_text if total_amount_owed else ""} {"" if routenote_revenue_data else f"There was not a payout from our distributor this payout cycle, so I've attached screenshots of available stats I could find for {artist_metadata["catalog_releases"].replace(";", ", ")} on our distributor's online dashboard."}\n\n"
+        )
+        file.write(
+            f"<INSERT_PERSONAL_NOTE_TO_{artist_metadata["observed_preferred_name"]}_HERE>\n\n"
+        )
+        file.write("Be well,\nPatrick @ BMR")
