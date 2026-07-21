@@ -920,7 +920,9 @@ for release_catalog_number in release_info_data:
             create_payout_csv(release_catalog_number)
 
 for artist_name, artist_metadata in artist_info_data.items():
-    artist_email_starter_text_txt_file_name = f"generated-files/{artist_name.split('@')[0]}.txt"
+    artist_email_starter_text_txt_file_name = (
+        f"generated-files/{artist_name.split('@')[0]}.txt"
+    )
     itemized_catalog_release_payouts_text = ""
     total_amount_owed = 0.00
     if "catalog_release_revenue" in artist_metadata:
@@ -928,7 +930,7 @@ for artist_name, artist_metadata in artist_info_data.items():
             "catalog_release_revenue"
         ].items():
             itemized_catalog_release_payouts_text += (
-                f"We owe you ${amount_owed} for {catalog_number}. "
+                f"We owe you ${amount_owed} USD for {catalog_number}. "
             )
             total_amount_owed += amount_owed
     email_subject = f"<EMAIL SUBJECT>: {artist_metadata["catalog_releases"].replace(";", ", ")} Accounting{" + Payout" if total_amount_owed else ""} ({current_date})"
@@ -941,17 +943,17 @@ for artist_name, artist_metadata in artist_info_data.items():
     payment_method_id = artist_metadata[f"{payout_method}_id"]
     payment_method_name_format = "PayPal" if payout_method == "paypal" else "Zelle"
     payment_method_text = (
-        f"Since we owe you less than $1 this payout cycle and our bank requires Zelle payouts to be $1 or more, I will send you ${total_amount_owed} via PayPal to your {payment_method_id} PayPal ID"
+        f" Since we owe you less than $1 USD this payout cycle and our bank requires Zelle payouts to be $1 USD or more, I will send you ${total_amount_owed} USD via PayPal to your {payment_method_id} PayPal ID"
         if artist_metadata["preferred_payment_method"] == "zelle"
         and total_amount_owed < 1.00
-        else f"I will send you the ${total_amount_owed} we owe you this payout cycle via {payment_method_name_format} to your {payment_method_id} {payment_method_name_format} ID"
+        else f" I will send you the ${total_amount_owed} USD we owe you this payout cycle via {payment_method_name_format} to your {payment_method_id} {payment_method_name_format} ID"
     )
-    payment_email_text = f"{payment_method_text} on Friday. If you would like me to send the ${total_amount_owed} to a different {payment_method_name_format} ID, please let me know before Friday."
+    payment_email_text = f"{payment_method_text} on Friday. If you would like me to send the ${total_amount_owed} USD to a different {payment_method_name_format} ID, please let me know before Friday."
     with open(artist_email_starter_text_txt_file_name, "w", encoding="utf-8") as file:
         file.write(f"{email_subject}\n\n\n\n\n")
         file.write(f"Hey {artist_metadata["observed_preferred_name"]},\n\n")
         file.write(
-            f"I hope you're well! Here is the accounting for the past 6 months for: {artist_metadata["catalog_releases"].replace(";", ", ")}. {itemized_catalog_release_payouts_text}In total, we owe you ${total_amount_owed}.{payment_email_text if total_amount_owed else ""} {"" if routenote_revenue_data else f"There was not a payout from our distributor this payout cycle, so I've attached screenshots of available stats I could find for {artist_metadata["catalog_releases"].replace(";", ", ")} on our distributor's online dashboard."}\n\n"
+            f"I hope you're well! Here is the accounting for the past 6 months for: {artist_metadata["catalog_releases"].replace(";", ", ")}. {itemized_catalog_release_payouts_text if itemized_catalog_release_payouts_text else ""}In total, we owe you ${total_amount_owed} USD.{payment_email_text if total_amount_owed else ""} {"" if routenote_revenue_data else f"There was not a payout from our distributor this payout cycle, so I've attached screenshots of available stats I could find for {artist_metadata["catalog_releases"].replace(";", ", ")} on our distributor's online dashboard."}\n\n"
         )
         file.write(
             f"<INSERT_PERSONAL_NOTE_TO_{artist_metadata["observed_preferred_name"]}_HERE>\n\n"
