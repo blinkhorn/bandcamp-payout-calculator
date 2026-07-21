@@ -501,7 +501,7 @@ def create_payout_csv(
                 artist
             ] = 0.00
     with open(
-        f"{current_date}_{release_catalog_number_report_id}_revenue_report.csv",
+        f"generated-files/{current_date}_{release_catalog_number_report_id}_revenue_report.csv",
         "w",
         newline="",
     ) as csvfile:
@@ -894,8 +894,8 @@ def create_payout_csv(
             release_info_data[release_catalog_number]["total_bandcamp_revenue"] = 0.00
 
     csv_to_pdf_table(
-        f"{current_date}_{release_catalog_number_report_id}_revenue_report.csv",
-        f"{current_date}_{release_catalog_number_report_id}_revenue_report.pdf",
+        f"generated-files/{current_date}_{release_catalog_number_report_id}_revenue_report.csv",
+        f"generated-files/{current_date}_{release_catalog_number_report_id}_revenue_report.pdf",
         release_catalog_number_report_id,
     )
 
@@ -920,7 +920,7 @@ for release_catalog_number in release_info_data:
             create_payout_csv(release_catalog_number)
 
 for artist_name, artist_metadata in artist_info_data.items():
-    artist_email_starter_text_txt_file_name = f"{artist_name.split('@')[0]}.txt"
+    artist_email_starter_text_txt_file_name = f"generated-files/{artist_name.split('@')[0]}.txt"
     itemized_catalog_release_payouts_text = ""
     total_amount_owed = 0.00
     if "catalog_release_revenue" in artist_metadata:
@@ -951,7 +951,7 @@ for artist_name, artist_metadata in artist_info_data.items():
         file.write(f"{email_subject}\n\n\n\n\n")
         file.write(f"Hey {artist_metadata["observed_preferred_name"]},\n\n")
         file.write(
-            f"I hope you're well! Here is the accounting for the past 6 months for: {artist_metadata["catalog_releases"].replace(";", ", ")}. {itemized_catalog_release_payouts_text}In total, we owe you ${total_amount_owed}. {payment_email_text if total_amount_owed else ""} {"" if routenote_revenue_data else f"There was not a payout from our distributor this payout cycle, so I've attached screenshots of available stats I could find for {artist_metadata["catalog_releases"].replace(";", ", ")} on our distributor's online dashboard."}\n\n"
+            f"I hope you're well! Here is the accounting for the past 6 months for: {artist_metadata["catalog_releases"].replace(";", ", ")}. {itemized_catalog_release_payouts_text}In total, we owe you ${total_amount_owed}.{payment_email_text if total_amount_owed else ""} {"" if routenote_revenue_data else f"There was not a payout from our distributor this payout cycle, so I've attached screenshots of available stats I could find for {artist_metadata["catalog_releases"].replace(";", ", ")} on our distributor's online dashboard."}\n\n"
         )
         file.write(
             f"<INSERT_PERSONAL_NOTE_TO_{artist_metadata["observed_preferred_name"]}_HERE>\n\n"
